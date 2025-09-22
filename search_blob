@@ -1,0 +1,88 @@
+#This code rebuilds, for each product, a compact text (search_blob) combining names, brands, categories, and  code 
+# in MongoDB, and updates this field only if the content has changed.
+# It is useful for the mapping
+
+from __future__ import annotations
+from typing import Iterable, List, Tuple
+from pymongo import MongoClient, UpdateOne
+from pymongo.errors import BulkWriteError
+import os
+
+# load env
+# On GitHub Actions the secrets are injected as environment variables.
+MONGO_URI = os.environ["MONGODB_URI"]
+DB_NAME = os.environ["DB_NAME"]
+PRODUCTS_COLLECTION = os.environ["PRODUCTS_COLLECTION"]
+STATE_COLLECTION = os.environ.get("STATE_COLLECTION", "off_state")
+SEARCH_PATHS = None
+
+def _derive_fields() -> Tuple[List[str], List[str], str]:
+    # SEARCH_PATHS is already a list
+    paths = SEARCH_PATHS or [
+        "search_blob","product_name_fr","product_name","generic_name_fr","brands_tags","categories_tags","code"
+    ]
+    text = [f for f in ("product_name_fr", "generic_name_fr", "product_name") if f in paths] or ["product_name_fr", "generic_name_fr"]
+    lists = [f for f in ("brands_tags", "categories_tags") if f in paths] or ["brands_tags", "categories_tags"]
+    code = "code"
+    return text, lists, code
+
+TEXT_FIELDS, LIST_FIELDS, CODE_FIELD = _derive_fields()
+
+def _connect() -> MongoClient:
+    if not MONGODB_URI:
+        raise RuntimeError("MONGODB_URI not set. Ensure .env is loaded.")
+    return MongoClient(MONGODB_URI, tls=True, maxPoolSize=100)
+
+def _make_blob(doc: dict) -> str:
+    # Build a compact space-separated text blob.
+    parts: List[str] = []
+    for f in TEXT_FIELDS:
+        v = doc.get(f)
+        if isinstance(v, str) and v.strip():
+            parts.append(v.strip())
+    for f in LIST_FIELDS:
+        vs = doc.get(f)
+        if isinstance(vs, list):
+            parts.extend([str(x).strip() for x in vs if str(x).strip()])
+    code = doc.get(CODE_FIELD)
+    if code not in (None, ""):
+        parts.append(str(code))
+    return " ".join(parts)
+
+def _chunks(it: Iterable, n: int):
+    buf = []
+    for x in it:
+        buf.append(x)
+        if len(buf) >= n:
+            yield buf; buf = []
+    if buf: yield buf
+
+def main(batch_size: int = 1000) -> None:
+    client = _connect()
+    col = client["off_database"][PRODUCTS_COLLECTION]
+    proj = {"_id": 1, "search_blob": 1, **{f: 1 for f in TEXT_FIELDS + LIST_FIELDS + [CODE_FIELD]}}
+    cur = col.find({}, proj, no_cursor_timeout=True, batch_size=batch_size)
+    updated = scanned = 0
+    try:
+        for chunk in _chunks(cur, batch_size):
+            ops: List[UpdateOne] = []
+            for doc in chunk:
+                scanned += 1
+                blob = _make_blob(doc)
+                if (doc.get("search_blob") or "") == blob:
+                    continue
+                ops.append(UpdateOne({"_id": doc["_id"]}, {"$set": {"search_blob": blob}}))
+            if ops:
+                try:
+                    res = col.bulk_write(ops, ordered=False)
+                    updated += (res.modified_count or 0) + (res.upserted_count or 0)
+                except BulkWriteError as e:
+                    print("Bulk write error:", e.details)
+            if scanned % (batch_size * 5) == 0:
+                print(f"scanned={scanned} updated={updated}")
+    finally:
+        cur.close()
+    print(f"Done. scanned={scanned} updated={updated}")
+
+if __name__ == "__main__":
+    main()
