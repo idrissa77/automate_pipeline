@@ -2,8 +2,8 @@ name: Sync OpenFoodFacts
 
 # Exécution chaque semaine
 on:
-  schedule:
-    - cron: '0 3 * * 1'  # Lundi à 03:00 UTC
+  # schedule:
+  #   - cron: '0 3 * * 1'  # Lundi à 03:00 UTC
   workflow_dispatch:  # permet de déclencher manuellement
 
 jobs:
