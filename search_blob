@@ -10,7 +10,7 @@ import os
 
 # load env
 # On GitHub Actions the secrets are injected as environment variables.
-MONGO_URI = os.environ["MONGODB_URI"]
+MONGODB_URI = os.environ["MONGODB_URI"]
 DB_NAME = os.environ["DB_NAME"]
 PRODUCTS_COLLECTION = os.environ["PRODUCTS_COLLECTION"]
 STATE_COLLECTION = os.environ.get("STATE_COLLECTION", "off_state")
