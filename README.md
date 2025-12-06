@@ -1,5 +1,6 @@
 **Title**: 
 
+
 Helping Users Choose Food Products More Effectively Through a Mobile Application.
 
 This project was carried out during my internship at Match Point (Startup).
@@ -13,3 +14,6 @@ The computer vision engineer extracted text from a photo of the shelf. Using thi
 
 
 **Result:** scanning a shelf photo trigger the entire process, which runs in a few seconds and displays highlighted products with their information, color codes, and alerts. I also automated product additions and updates with GitHub Actions, scheduled weekly.
+
+
+<img width="445" height="132" alt="image" src="https://github.com/user-attachments/assets/e508a4b4-3e79-4149-bb02-b96187e33670" />
